@@ -8,6 +8,47 @@
     <div v-if="loading" class="loading">{{ t('common.loading') }}</div>
     <div v-else-if="error" class="error">{{ error }}</div>
     <div v-else>
+      <!-- Submitted Orders section — shown only when there are submitted orders -->
+      <div v-if="submittedOrders.length > 0" class="card submitted-orders-card">
+        <div class="card-header">
+          <h3 class="card-title">{{ t('orders.submittedOrders') }} ({{ submittedOrders.length }})</h3>
+        </div>
+        <div class="table-container">
+          <table class="submitted-table">
+            <thead>
+              <tr>
+                <th>{{ t('orders.table.orderNumber') }}</th>
+                <th>{{ t('orders.table.items') }}</th>
+                <th>{{ t('orders.table.totalValue') }}</th>
+                <th>{{ t('orders.table.orderDate') }}</th>
+                <th>{{ t('orders.table.expectedDelivery') }}</th>
+                <th>{{ t('orders.leadTime') }}</th>
+                <th>{{ t('orders.table.status') }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="order in submittedOrders" :key="order.id">
+                <td><strong>{{ order.order_number }}</strong></td>
+                <td>{{ order.items.length }}</td>
+                <td><strong>{{ currencySymbol }}{{ order.total_value.toLocaleString() }}</strong></td>
+                <td>{{ formatDate(order.order_date) }}</td>
+                <td>{{ formatDate(order.expected_delivery) }}</td>
+                <td>
+                  <span class="lead-time">
+                    {{ t('orders.daysUntilDelivery', { days: getLeadTimeDays(order.expected_delivery) }) }}
+                  </span>
+                </td>
+                <td>
+                  <span :class="['badge', getOrderStatusClass(order.status)]">
+                    {{ t('status.submitted') }}
+                  </span>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
       <div class="stats-grid">
         <div class="stat-card success">
           <div class="stat-label">{{ t('status.delivered') }}</div>
@@ -45,7 +86,7 @@
               </tr>
             </thead>
             <tbody>
-              <tr v-for="order in orders" :key="order.id">
+              <tr v-for="order in regularOrders" :key="order.id">
                 <td class="col-order-number"><strong>{{ order.order_number }}</strong></td>
                 <td class="col-customer">{{ translateCustomerName(order.customer) }}</td>
                 <td class="col-items">
@@ -129,6 +170,25 @@ export default {
       loadOrders()
     })
 
+    // Submitted orders split — kept separate from the main orders table
+    const submittedOrders = computed(() =>
+      orders.value.filter(order => order.status === 'Submitted')
+    )
+
+    const regularOrders = computed(() =>
+      orders.value.filter(order => order.status !== 'Submitted')
+    )
+
+    // Lead time: days remaining from today until expected_delivery
+    const getLeadTimeDays = (expectedDelivery) => {
+      const deliveryDate = new Date(expectedDelivery)
+      if (isNaN(deliveryDate.getTime())) return '—'
+      const today = new Date()
+      today.setHours(0, 0, 0, 0)
+      const diffMs = deliveryDate.getTime() - today.getTime()
+      return Math.ceil(diffMs / (1000 * 60 * 60 * 24))
+    }
+
     const getOrdersByStatus = (status) => {
       return orders.value.filter(order => order.status === status)
     }
@@ -138,7 +198,8 @@ export default {
         'Delivered': 'success',
         'Shipped': 'info',
         'Processing': 'warning',
-        'Backordered': 'danger'
+        'Backordered': 'danger',
+        'Submitted': 'submitted'
       }
       return statusMap[status] || 'info'
     }
@@ -160,6 +221,9 @@ export default {
       loading,
       error,
       orders,
+      submittedOrders,
+      regularOrders,
+      getLeadTimeDays,
       getOrdersByStatus,
       getOrderStatusClass,
       formatDate,
@@ -172,6 +236,28 @@ export default {
 </script>
 
 <style scoped>
+/* Submitted orders card — visually distinct from main table */
+.submitted-orders-card {
+  border-left: 3px solid #6366f1;
+  margin-bottom: 1.5rem;
+}
+
+.submitted-table {
+  table-layout: auto;
+  width: 100%;
+}
+
+.submitted-table th,
+.submitted-table td {
+  white-space: nowrap;
+}
+
+.lead-time {
+  font-size: 0.813rem;
+  font-weight: 500;
+  color: #6366f1;
+}
+
 /* Fixed table layout to prevent column shifting */
 .orders-table {
   table-layout: fixed;
